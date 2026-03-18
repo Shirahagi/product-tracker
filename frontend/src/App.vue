@@ -131,7 +131,8 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 
 // Django 后端的地址
-const API_BASE_URL = 'http://127.0.0.1:8000/api'
+const serverIP = window.location.hostname;
+const API_BASE_URL = `http://${serverIP}:8000/api`
 
 // 响应式数据
 const items = ref([])
@@ -150,7 +151,7 @@ const channels = ref([])
 // ====== WebSocket 逻辑 ======
 let ws = null
 const connectWebSocket = () => {
-  ws = new WebSocket('ws://127.0.0.1:8000/ws/scan/')
+  ws = new WebSocket(`ws://${serverIP}:8000/ws/scan/`)
   ws.onopen = () => console.log('🔗 WebSocket 连接成功！')
   ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
