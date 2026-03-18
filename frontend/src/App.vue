@@ -47,26 +47,28 @@
                   <tbody>
                     <tr v-for="item in items" :key="item.id">
                       <td>{{ item.barcode }}</td>
-                        <td>
-                         <!-- 如果正在编辑，显示输入框；否则显示文字 -->
-                          <div v-if="item.isEditing">
-                            <input v-model="item.editChannel" />
-                          </div>
+                      <td>
+                        <!-- 如果正在编辑，显示下拉选择框 -->
+                        <div v-if="item.isEditing">
+                          <select v-model="item.editChannel" style="padding: 4px;">
+                            <option value="">请选择目标</option>
+                            <option v-for="c in channels" :key="c" :value="c">{{ c }}</option>
+                          </select>
+                          <button @click="saveEdit(item)">保存</button>
+                          <button @click="cancelEdit(item)">取消</button>
+                        </div>
+                        <!-- 正常状态显示最近状态文字 -->
                         <div v-else>
-                            {{ item.last_channel }}
+                          {{ item.last_channel }}
                         </div>
                       </td>
-                        <td>{{ new Date(item.updated_at).toLocaleString() }}</td>
-                        <td>
-                          <div v-if="item.isEditing">
-                            <button @click="saveEdit(item)">保存</button>
-                            <button @click="cancelEdit(item)">取消</button>
-                          </div>
-                          <div v-else>
-                            <button @click="item.isEditing = true">✏️ 编辑</button>
-                            <button @click="viewLogs(item)">📋 查看日志</button>
-                          </div>
-                        </td>
+                      <td>{{ new Date(item.updated_at).toLocaleString() }}</td>
+                      <td>
+                        <div v-if="!item.isEditing">
+                          <button @click="startEdit(item)">✏️ 编辑</button>
+                          <button @click="viewLogs(item)">📋 查看日志</button>
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -125,10 +127,9 @@
   </div>
 </template>
 <script setup>
-
-
-import { ref, onMounted, onUnmounted, nextTick } from 'vue' // 确保引入 onUnmounted
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
+
 // Django 后端的地址
 const API_BASE_URL = 'http://127.0.0.1:8000/api'
 
@@ -146,67 +147,63 @@ const modalScanInput = ref('')
 const selectedChannel = ref('')
 const channels = ref([])
 
-
-// ====== 新增 WebSocket 连接逻辑 ======
+// ====== WebSocket 逻辑 ======
 let ws = null
-
 const connectWebSocket = () => {
-  // 连接后端的 WebSocket 频道
   ws = new WebSocket('ws://127.0.0.1:8000/ws/scan/')
-
-  ws.onopen = () => {
-    console.log('🔗 WebSocket 连接成功！')
-  }
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data)
+  ws.onopen = () => console.log('🔗 WebSocket 连接成功！')
+  ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  // 1. 如果是产线机器自动扫码发来的更新信号（不涉及人工确认）
   if (data.refresh_table) {
-    fetchItems()
+    fetchItems();
+    return;
+  }
+
+  // 2. 员工位扫码逻辑
+  if (showScanModal.value) {
+    // 【弹窗已打开的情况】
+    console.log('检测到第二次扫码，正在比对...');
+    
+    // 检查第二次扫码的内容是否与第一次一致
+    if (data.barcode && data.barcode === modalScanInput.value) {
+      console.log('条码一致，执行自动确认...');
+      confirmScan(); // 自动调用确认函数，就像点击了确定按钮一样
+    } else {
+      console.log('条码不匹配或为空，忽略本次扫码，保持原有弹窗。');
+      // 不做任何操作，弹窗不关闭，数据不更新
+    }
   } else {
-    modalScanInput.value = data.barcode
-    // 自动预选后端建议的通道 (比如 "1")
-    selectedChannel.value = data.target_channel 
-    showScanModal.value = true
+    // 【弹窗未打开的情况】
+    console.log('检测到第一次扫码，打开弹窗...');
+    modalScanInput.value = data.barcode;
+    // 自动预选后端建议的通道
+    selectedChannel.value = data.target_channel;
+    showScanModal.value = true;
   }
-}
-
+};
   ws.onclose = () => {
-    console.log('❌ WebSocket 断线，1秒后尝试重连...')
-    setTimeout(connectWebSocket, 1000) // 工业级断线重连机制
+    console.log('❌ WebSocket 断线，1秒后重连...')
+    setTimeout(connectWebSocket, 1000)
   }
 }
 
-// 在组件挂载时，启动 WebSocket
-onMounted(() => {
-  fetchItems()
-  fetchChannels()
-  connectWebSocket() // <--- 加上这一行
-})
-
-// 组件挂载时，启动全局监听
-onMounted(() => {
-  fetchItems()
-  fetchChannels()
-})
-
-// 组件销毁时，移除监听（好习惯，防止内存泄漏）
-onUnmounted(() => {
-})
-// 获取货物列表
+// ====== 数据获取逻辑 ======
 const fetchItems = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/items/?barcode=${searchQuery.value}`)
     items.value = response.data.map(item => ({
       ...item,
       isEditing: false,
-      editChannel: item.last_channel
+      // 【关键修改】：编辑框初始化使用 intended_target (纯数字/代号)，而不是 last_channel (长句子)
+      editChannel: item.intended_target 
     }))
   } catch (error) {
     console.error('获取货物列表失败:', error)
   }
 }
 
-// 获取分流通道列表
 const fetchChannels = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/channels/`)
@@ -216,83 +213,71 @@ const fetchChannels = async () => {
   }
 }
 
-// 处理扫码
-const handleScan = async () => {
-  if (!scanInput.value.trim()) {
-    alert('请输入条码')
-    return
-  }
-
-  // 弹出弹窗，预填条码
-  showScanModal.value = true
-  modalScanInput.value = scanInput.value
-  scanInput.value = ''
+// ====== 编辑逻辑 ======
+const startEdit = (item) => {
+  item.isEditing = true
+  // 确保点开编辑时，框里是干净的通道号
+  item.editChannel = item.intended_target 
 }
 
-// 手动输入
+const cancelEdit = (item) => {
+  item.isEditing = false
+}
+
+const saveEdit = async (item) => {
+  if (!item.editChannel) {
+    alert('请选择有效的分流通道')
+    return
+  }
+  try {
+    const response = await axios.post(`${API_BASE_URL}/update-channel/${item.id}/`, {
+      target_channel: item.editChannel
+    })
+    item.isEditing = false
+    alert('路径已实时修正，机械指令下发！')
+    await fetchItems() // 重新获取数据刷新视图
+  } catch (e) {
+    console.error('更新失败:', e)
+    alert('更新失败，请重试')
+  }
+}
+
+// ====== 扫码/弹窗逻辑 ======
 const openManualScan = () => {
   showScanModal.value = true
   modalScanInput.value = ''
   selectedChannel.value = ''
 }
 
-// 确认扫码
 const confirmScan = async () => {
   if (!modalScanInput.value.trim() || !selectedChannel.value) {
-    alert('请输入条码和选择通道')
-    return
+    // 如果是第二次扫码自动触发，但通道还没选（比如规则库里没匹配到），则不能确认
+    alert('请先选择分流通道再确认'); 
+    return;
   }
 
   try {
     const response = await axios.post(`${API_BASE_URL}/manual-scan/`, {
       barcode: modalScanInput.value.trim(),
       target_channel: selectedChannel.value
-    })
+    });
 
-    alert(`扫码成功！请前往: ${response.data.target_channel}`)
-    showScanModal.value = false
-    modalScanInput.value = ''
-    selectedChannel.value = ''
-    await fetchItems()
+    showScanModal.value = false; // 关键：确认后关闭弹窗
+    await fetchItems();
+    console.log(`条码 ${modalScanInput.value} 已自动确认并存库`);
+    
+    // 可选：加一个简短的通知，而不是 alert（alert 会阻塞操作）
+    //notify(`登记成功！去往通道: ${selectedChannel.value}`);
   } catch (error) {
-    console.error('扫码处理失败:', error)
-    alert('扫码处理失败，请重试')
+    alert('确认失败，请重试');
   }
-}
+};
 
-// 关闭扫码弹窗
 const closeScanModal = () => {
   showScanModal.value = false
-  modalScanInput.value = ''
-  selectedChannel.value = ''
-}
-// 保存编辑的分流通道
-const saveEdit = async (item) => {
-  if (!item.editChannel || !item.editChannel.trim()) {
-    alert('请输入有效的分流通道')
-    return
-  }
-  
-  try {
-    const response = await axios.post(`${API_BASE_URL}/update-channel/${item.id}/`, {
-      target_channel: item.editChannel.trim()
-    })
-    item.isEditing = false
-    item.last_channel = response.data.item.last_channel // 用返回的数据更新
-    alert('机械指令已下发！')
-  } catch (e) {
-    console.error('更新失败:', e)
-    alert('更新失败: ' + (e.response?.data?.detail || '请重试'))
-  }
 }
 
-// 取消编辑
-const cancelEdit = (item) => {
-  item.isEditing = false
-  item.editChannel = item.last_channel
-}
-
-// 查看日志
+// ====== 日志逻辑 ======
 const viewLogs = async (item) => {
   try {
     const response = await axios.get(`${API_BASE_URL}/item-logs/${item.id}/`)
@@ -300,22 +285,23 @@ const viewLogs = async (item) => {
     logs.value = response.data.logs
     showLogModal.value = true
   } catch (error) {
-    console.error('获取日志失败:', error)
-    alert('获取日志失败，请重试')
+    alert('获取日志失败')
   }
 }
 
-// 关闭日志模态框
 const closeLogModal = () => {
   showLogModal.value = false
-  currentLogItem.value = null
-  logs.value = []
 }
 
-// 组件挂载时获取数据
+// ====== 生命周期钩子 (只保留一份) ======
 onMounted(() => {
   fetchItems()
   fetchChannels()
+  connectWebSocket()
+})
+
+onUnmounted(() => {
+  if (ws) ws.close()
 })
 </script>
 
