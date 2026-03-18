@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'tracker',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -70,7 +72,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'backend.wsgi.application'
+# WSGI_APPLICATION = 'backend.wsgi.application'
+ASGI_APPLICATION = 'backend.asgi.application'
 
 
 # Database
@@ -78,11 +81,14 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'product_tracker',
+        'USER': 'root',
+        'PASSWORD': '1212',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -132,3 +138,10 @@ CORS_ALLOWED_ORIGINS =[
     "http://localhost:5177",
     "http://127.0.0.1:5177",
 ]
+
+# WebSocket 频道层配置 (使用内存层，适合本地开发测试)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}

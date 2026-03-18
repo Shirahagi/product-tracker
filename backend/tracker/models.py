@@ -4,6 +4,7 @@ class Item(models.Model):
     barcode = models.CharField(max_length=100, unique=True, verbose_name="条码")
     name = models.CharField(max_length=100, blank=True, verbose_name="货物名称")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="最后更新时间")
+    last_channel = models.CharField(max_length=100, default="未分流", verbose_name="最近分流通道")
 
     def __str__(self):
         return self.barcode
