@@ -125,6 +125,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 CORS_ALLOWED_ORIGINS =[
     "http://127.0.0.1:5173",
@@ -136,8 +137,11 @@ CORS_ALLOWED_ORIGINS =[
 # WebSocket 频道层配置 (使用内存层，适合本地开发测试)
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
 }
 
 ALLOWED_HOSTS = ['*', '192.168.2.16', 'localhost', '127.0.0.1']

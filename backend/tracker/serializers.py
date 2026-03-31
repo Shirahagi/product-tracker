@@ -4,4 +4,4 @@ from .models import Item, ScanRecord
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
-        fields = ['id', 'barcode', 'name', 'last_channel', 'updated_at']
+        fields = '__all__'
