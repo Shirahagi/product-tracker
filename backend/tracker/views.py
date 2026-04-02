@@ -46,7 +46,7 @@ def manual_scan(request):
         barcode=barcode,
         action=item.last_channel
     )
-    
+    broadcast_refresh()
     return Response({'message': '登记成功', 'item': ItemSerializer(item).data})
 
 @api_view(['POST'])
@@ -67,7 +67,8 @@ def update_item_channel(request, item_id):
         barcode=item.barcode,
         action=item.last_channel
     )
-
+    
+    broadcast_refresh()
     return Response({
         'message': '路径已实时修正', 
         'new_channel': new_channel,
