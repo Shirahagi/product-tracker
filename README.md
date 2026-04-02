@@ -145,7 +145,81 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
-#### 4️⃣ 启动后端服务
+#### 3️⃣ᴮ 配置 Redis（可选但推荐）
+
+Redis 用于缓存和实时数据传输，可显著提升系统性能。
+
+**Windows:**
+1. 下载 Redis：
+   - 访问 [https://github.com/microsoftarchive/redis/releases](https://github.com/microsoftarchive/redis/releases)
+   - 下载最新版本（如 `Redis-x64-3.2.100.msi` 或更新版本）
+   - 双击安装，选择默认选项
+
+2. 启动 Redis：
+```bash
+# Redis 作为服务已自动启动
+# 或在命令行中手动启动
+redis-server
+
+# 验证连接
+redis-cli ping
+# 返回 PONG 表示成功
+```
+
+**macOS:**
+```bash
+# 使用 Homebrew 安装
+brew install redis
+
+# 启动 Redis
+brew services start redis
+
+# 或在终端手动启动
+redis-server
+
+# 验证连接
+redis-cli ping
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# 安装 Redis
+sudo apt-get update
+sudo apt-get install redis-server
+
+# 启动 Redis
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
+
+# 验证连接
+redis-cli ping
+```
+
+**Docker 方式（推荐）：**
+```bash
+# 拉取 Redis 镜像
+docker pull redis:latest
+
+# 运行 Redis 容器
+docker run -d -p 6379:6379 --name redis redis:latest
+
+# 验证连接
+redis-cli ping
+```
+
+**修改 Django 设置以使用 Redis：**
+
+编辑 `backend/backend/settings.py` 中的缓存配置（约第 130-140 行）：
+```python
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+    }
+}
+```
+
+#### 5️⃣ 启动后端服务
 
 ```bash
 cd backend
@@ -160,7 +234,7 @@ python manage.py runserver 0.0.0.0:8000
 
 **后端访问地址：** `http://localhost:8000`
 
-#### 5️⃣ 配置前端环境
+#### 6️⃣ 配置前端环境
 
 ```bash
 cd ../frontend
